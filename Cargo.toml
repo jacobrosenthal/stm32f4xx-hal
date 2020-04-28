@@ -47,7 +47,11 @@ default-features = false
 version = "1.0.2"
 
 [dependencies.embedded-hal]
-version = "=1.0.0-alpha.1"
+# TODO: Update version when I2S proposal is finalized:
+# https://github.com/rust-embedded/embedded-hal/pull/204
+# version = "=1.0.0-alpha.1"
+git = "https://github.com/jacobrosenthal/embedded-hal/"
+branch = "i2s-update"
 
 [dev-dependencies]
 panic-semihosting = "0.5.3"
