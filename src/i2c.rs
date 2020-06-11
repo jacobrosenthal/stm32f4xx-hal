@@ -695,6 +695,8 @@ where
 }
 
 trait I2cCommon {
+    fn write_bytes(&mut self, addr: u8, bytes: &[u8]) -> Result<(), Error>;
+
     fn send_byte(&self, byte: u8) -> Result<(), Error>;
 
     fn recv_byte(&self) -> Result<u8, Error>;
@@ -704,6 +706,39 @@ impl<I2C, PINS> I2cCommon for I2c<I2C, PINS>
 where
     I2C: Deref<Target = i2c1::RegisterBlock>,
 {
+    fn write_bytes(&mut self, addr: u8, bytes: &[u8]) -> Result<(), Error> {
+        // Send a START condition
+        self.i2c.cr1.modify(|_, w| w.start().set_bit());
+
+        // Wait until START condition was generated
+        while self.i2c.sr1.read().sb().bit_is_clear() {}
+
+        // Also wait until signalled we're master and everything is waiting for us
+        while {
+            let sr2 = self.i2c.sr2.read();
+            sr2.msl().bit_is_clear() && sr2.busy().bit_is_clear()
+        } {}
+
+        // Set up current address, we're trying to talk to
+        self.i2c
+            .dr
+            .write(|w| unsafe { w.bits(u32::from(addr) << 1) });
+
+        // Wait until address was sent
+        while self.i2c.sr1.read().addr().bit_is_clear() {}
+
+        // Clear condition by reading SR2
+        self.i2c.sr2.read();
+
+        // Send bytes
+        for c in bytes {
+            self.send_byte(*c)?;
+        }
+
+        // Fallthrough is success
+        Ok(())
+    }
+
     fn send_byte(&self, byte: u8) -> Result<(), Error> {
         // Wait until we're ready for sending
         while self.i2c.sr1.read().tx_e().bit_is_clear() {}
@@ -765,27 +800,8 @@ where
         // Wait until START condition was generated
         while self.i2c.sr1.read().sb().bit_is_clear() {}
 
-        // Also wait until signalled we're master and everything is waiting for us
-        while {
-            let sr2 = self.i2c.sr2.read();
-            sr2.msl().bit_is_clear() && sr2.busy().bit_is_clear()
-        } {}
-
-        // Set up current address, we're trying to talk to
-        self.i2c
-            .dr
-            .write(|w| unsafe { w.bits(u32::from(addr) << 1) });
-
-        // Wait until address was sent
-        while self.i2c.sr1.read().addr().bit_is_clear() {}
-
-        // Clear condition by reading SR2
-        self.i2c.sr2.read();
-
-        // Send bytes
-        for c in bytes {
-            self.send_byte(*c)?;
-        }
+        // Send a STOP condition
+        self.i2c.cr1.modify(|_, w| w.stop().set_bit());
 
         // Fallthrough is success
         Ok(())
