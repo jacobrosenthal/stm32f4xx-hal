@@ -12,6 +12,7 @@ use crate::gpio::{
     gpiob::{PB14, PB15},
     Alternate, AF12,
 };
+use crate::time::Hertz;
 
 pub use synopsys_usb_otg::UsbBus;
 use synopsys_usb_otg::UsbPeripheral;
@@ -22,6 +23,7 @@ pub struct USB {
     pub usb_pwrclk: stm32::OTG_HS_PWRCLK,
     pub pin_dm: PB14<Alternate<AF12>>,
     pub pin_dp: PB15<Alternate<AF12>>,
+    pub hclk: Hertz,
 }
 
 unsafe impl Sync for USB {}
@@ -45,6 +47,10 @@ unsafe impl UsbPeripheral for USB {
         });
 
         Ok(())
+    }
+
+    fn ahb_frequency_hz(&self) -> u32 {
+        self.hclk.0
     }
 }
 
